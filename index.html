@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10120f">
+  <meta name="description" content="An interactive, research-informed guide to the RAG architecture: ingestion, retrieval, generation, and grounded answers.">
+  <title>RAG, in motion — an interactive architecture</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #10120f;
+      --panel: #171a16;
+      --panel-raised: #1d211c;
+      --line: #30362e;
+      --muted: #9da69a;
+      --text: #f2f3e9;
+      --lime: #d3f36b;
+      --blue: #a4c9ff;
+      --purple: #c9b5ff;
+      --orange: #ffc98c;
+      --stage-bg: rgba(20,31,34,.96);
+      --stage-hover-bg: #17272b;
+      --radius: 18px;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 0;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 87% 2%, rgba(147, 177, 105, .11), transparent 32rem),
+        radial-gradient(ellipse at 5% 34%, rgba(85, 125, 165, .08), transparent 34rem),
+        var(--bg);
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; }
+    .shell { width: min(1380px, calc(100% - 64px)); margin-inline: auto; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 76px;
+      border-bottom: 1px solid rgba(255,255,255,.09);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 13px; font-weight: 700; letter-spacing: -.02em; }
+    .brand-mark { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #536044; border-radius: 9px; color: var(--lime); font-family: var(--mono); font-size: 13px; }
+    .site-nav { display: flex; align-items: center; gap: 8px; }
+    .nav-link, .projects-menu summary, .theme-toggle { min-height: 36px; padding: 9px 11px; color: var(--muted); border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 11px; text-decoration: none; cursor: pointer; }
+    .nav-link:hover, .projects-menu summary:hover, .theme-toggle:hover { color: var(--text); border-color: var(--line); background: var(--panel); }
+    .nav-link[aria-current="page"] { color: var(--text); }
+    .projects-menu { position: relative; }
+    .projects-menu summary { list-style: none; }
+    .projects-menu summary::-webkit-details-marker { display: none; }
+    .projects-menu summary::after { margin-left: 7px; content: "⌄"; }
+    .project-menu-items { position: absolute; z-index: 8; top: calc(100% + 7px); right: 0; display: grid; width: 245px; gap: 4px; padding: 7px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); box-shadow: 0 16px 38px #0005; }
+    .project-menu-items a { padding: 10px; color: var(--muted); border-radius: 7px; font-size: 11px; text-decoration: none; }
+    .project-menu-items a:hover, .project-menu-items a[aria-current="page"] { color: var(--text); background: var(--panel-raised); }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 7px; border-color: var(--line); white-space: nowrap; }
+
+    html[data-theme="light"] { color-scheme: light; --bg: #f4f6f1; --panel: #fff; --panel-raised: #eef2e9; --line: #d3dbcf; --muted: #596454; --text: #192119; --lime: #547a0b; --blue: #1766ae; --purple: #7658a8; --orange: #a55c14; --stage-bg: rgba(255,255,255,.95); --stage-hover-bg: #eaf5f8; }
+    html[data-theme="light"] body { background: radial-gradient(ellipse at 87% 2%, rgba(147,177,105,.14), transparent 32rem), radial-gradient(ellipse at 5% 34%, rgba(85,125,165,.10), transparent 34rem), var(--bg); }
+    html[data-theme="light"] .topbar { border-color: rgba(25,33,25,.14); }
+    html[data-theme="light"] .brand-mark { border-color: #9baa89; }
+    html[data-theme="light"] .hero-copy { color: #4c574a; }
+    html[data-theme="light"] .architecture { border-color: #cfdbdf; background-color: #edf3f5; background-image: linear-gradient(rgba(67,94,113,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(67,94,113,.08) 1px, transparent 1px); }
+    html[data-theme="light"] .lane + .lane, html[data-theme="light"] .pipeline-bridge + .lane { border-color: #d0dad4; }
+    html[data-theme="light"] .lane-caption { color: #687365; }
+    html[data-theme="light"] .flow { scrollbar-color: #aab8a0 #e1e7dc; }
+    html[data-theme="light"] .stage { color: #1d2b31; border-color: #9bc2b1; }
+    html[data-theme="light"] .stage:hover, html[data-theme="light"] .stage:focus-visible { border-color: #2781ad; }
+    html[data-theme="light"] .stage.is-active { border-color: #197db8; }
+    html[data-theme="light"] .stage.is-visited { border-color: #4b9b7c; }
+    html[data-theme="light"] .stage-desc { color: #53625d; }
+    html[data-theme="light"] .stage-open { color: #52635c; }
+    html[data-theme="light"] .flow-link { background: #8ca8b6; }
+    html[data-theme="light"] .flow-link::after { border-color: #1677b4; }
+    html[data-theme="light"] .pipeline-bridge, html[data-theme="light"] .flow-status { color: #1766ae; }
+    html[data-theme="light"] .journey-secondary { color: #20333e; border-color: #b7c8d0; background: #f6fafb; }
+    html[data-theme="light"] .journey-note { color: #324b5a; border-color: #c3d5de; background: rgba(239,247,250,.94); }
+    html[data-theme="light"] .process-popover { border-color: #8fc5e2; background: linear-gradient(110deg, #eaf5fb, #f8fbfc 75%); }
+    html[data-theme="light"] .process-title { color: #172a35; }
+    html[data-theme="light"] .process-copy { color: #405765; }
+    html[data-theme="light"] .process-detail { color: #334d5b; border-color: #c3d9e3; background: #f4f9fb; }
+    html[data-theme="light"] .process-detail strong { color: #176b9e; }
+    html[data-theme="light"] .process-more { color: #176b9e; }
+    html[data-theme="light"] .process-resources { border-color: #cddde5; }
+    html[data-theme="light"] .process-resources-label { color: #536d7b; }
+    html[data-theme="light"] .resource-item { border-color: #c5d8e2; background: #edf6fa; }
+    html[data-theme="light"] .resource-open, html[data-theme="light"] .resource-preview-button { color: #214e67; }
+    html[data-theme="light"] .resource-preview-button { border-color: #c5d8e2; }
+    html[data-theme="light"] .insight-card { border-color: #d3dbcf; background: linear-gradient(140deg, #fff, #f0f3eb); }
+    html[data-theme="light"] .insight-card p { color: #465146; }
+    html[data-theme="light"] .insight-card strong { color: #243126; }
+    html[data-theme="light"] .research-note { color: #5e695b; border-color: #d5dccf; }
+    html[data-theme="light"] .footer { color: #5e695b; border-color: #d5dccf; }
+    html[data-theme="light"] .modal-backdrop, html[data-theme="light"] .resource-backdrop { background: #25302ab8; }
+    html[data-theme="light"] .modal { border-color: #d1dbca; background: #fff; box-shadow: 0 25px 100px #1f2c2340; }
+    html[data-theme="light"] .modal-close { color: #364235; border-color: #d5ddd1; }
+    html[data-theme="light"] .modal p { color: #4e5a4b; }
+    html[data-theme="light"] .modal-detail { color: #364433; border-color: #dce4d7; background: #f5f8f2; }
+    html[data-theme="light"] .modal-detail strong { color: #547a0b; }
+    html[data-theme="light"] .modal-tip { color: #58664f; border-color: #8ca45d; }
+
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 48px; align-items: end; padding: 66px 0 52px; }
+    .eyebrow, .section-kicker { color: var(--lime); font: 11px var(--mono); letter-spacing: .16em; text-transform: uppercase; }
+    h1 { max-width: 820px; margin: 16px 0 18px; font-size: clamp(42px, 6.4vw, 82px); line-height: .98; font-weight: 560; letter-spacing: -.075em; }
+    h1 span { color: var(--lime); }
+    .hero-copy { max-width: 690px; margin: 0; color: #b7beb2; font-size: 16px; line-height: 1.75; }
+    .hero-aside { padding: 18px 0 3px 20px; border-left: 1px solid var(--line); }
+    .aside-label { color: var(--muted); font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .aside-number { margin: 10px 0 5px; font-size: 37px; letter-spacing: -.06em; }
+    .aside-copy { max-width: 210px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+    .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 19px; }
+    .section-heading h2 { margin: 8px 0 0; font-size: 23px; font-weight: 540; letter-spacing: -.04em; }
+    .section-note { color: var(--muted); font-size: 12px; }
+    .architecture { padding: 24px; border: 1px solid #273754; border-radius: 22px; background-color: #111820; background-image: linear-gradient(rgba(86,112,137,.075) 1px, transparent 1px), linear-gradient(90deg, rgba(86,112,137,.075) 1px, transparent 1px); background-size: 32px 32px; box-shadow: 0 24px 80px #00000020; }
+    .lane + .lane { margin-top: 28px; padding-top: 26px; border-top: 1px solid #2c322b; }
+    .pipeline-bridge { margin: 15px 0 0; color: #38bdf8; text-align: center; font: 9px var(--mono); letter-spacing: .08em; }
+    .pipeline-bridge + .lane { margin-top: 15px; padding-top: 20px; border-top: 1px solid #2c322b; }
+    .lane-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 17px; }
+    .lane-title { display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 650; letter-spacing: .01em; }
+    .lane-title .lane-number { color: var(--muted); font: 10px var(--mono); }
+    .lane-caption { color: #818a7e; font: 10px var(--mono); }
+    .flow { display: flex; align-items: stretch; gap: 10px; overflow-x: auto; padding: 2px 2px 12px; scrollbar-color: #4a5441 #20231f; scrollbar-width: thin; }
+    .stage {
+      position: relative;
+      flex: 1 0 155px;
+      min-width: 0;
+      min-height: 160px;
+      padding: 15px 14px 14px;
+      text-align: left;
+      cursor: pointer;
+      border: 1px solid #275d4a;
+      border-radius: 14px;
+      background: var(--stage-bg);
+      transition: border-color .2s, background .2s, transform .2s, box-shadow .2s;
+    }
+    .stage:hover, .stage:focus-visible { transform: translateY(-3px); border-color: #38bdf8; background: var(--stage-hover-bg); outline: none; }
+    .stage.is-active { border-color: #159cf3; box-shadow: 0 0 0 1px #159cf340, 0 0 25px #159cf31a; }
+    .stage.is-visited { border-color: #3a8770; }
+    .stage-top { display: flex; justify-content: space-between; align-items: center; }
+    .stage-index { color: #38bdf8; font: 10px var(--mono); }
+    .stage-icon { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #3c4438; border-radius: 9px; color: var(--lime); font-size: 14px; }
+    .ingest .stage-icon { color: var(--blue); border-color: #384459; }
+    .answer .stage-icon { color: var(--lime); }
+    .stage-name { display: block; margin-top: 16px; font-size: 13px; font-weight: 650; letter-spacing: -.02em; }
+    .stage-desc { display: block; margin-top: 6px; color: #9ba397; font-size: 11px; line-height: 1.55; }
+    .stage-open { display: inline-block; margin-top: 12px; color: #788273; font: 9px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .flow-link { position: relative; flex: 0 0 27px; align-self: center; height: 2px; background: #40586b; }
+    .flow-link::after { position: absolute; top: -3px; right: 0; width: 7px; height: 7px; content: ""; transform: rotate(45deg); border-top: 1px solid #38bdf8; border-right: 1px solid #38bdf8; }
+    .flow-link::before { position: absolute; z-index: 1; top: -3px; left: 0; width: 7px; height: 7px; content: ""; border-radius: 50%; background: #159cf3; opacity: 0; box-shadow: 0 0 9px #159cf3; }
+    .flow-link.is-flowing::before { animation: travel 1.2s ease-in-out infinite; }
+    @keyframes travel { 0% { left: 0; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { left: calc(100% - 7px); opacity: 0; } }
+    .flow.ingest .flow-link::before { background: #159cf3; box-shadow: 0 0 9px #159cf3; }
+    .flow.ingest .flow-link::after { border-color: #38bdf8; }
+    .flow-controls { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 4px; }
+    .journey-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; }
+    .run-button { display: inline-flex; align-items: center; gap: 9px; padding: 10px 14px; color: #071521; border: 0; border-radius: 7px; background: #159cf3; font-size: 11px; font-weight: 750; cursor: pointer; transition: transform .18s, filter .18s; }
+    .run-button:hover { transform: translateY(-1px); filter: brightness(1.06); }
+    .run-button:disabled { cursor: progress; opacity: .7; }
+    .run-button .play { font-size: 9px; }
+    .journey-secondary { padding: 9px 11px; color: #d7e5ef; cursor: pointer; border: 1px solid #35495a; border-radius: 7px; background: #151e28; font-size: 10px; font-weight: 650; }
+    .journey-secondary:hover { border-color: #38bdf8; }
+    .journey-secondary:disabled { opacity: .5; cursor: default; }
+    .control-hint { color: var(--muted); font-size: 11px; }
+    .flow-status { color: #38bdf8; font: 10px var(--mono); }
+    .journey-note { margin-top: 13px; padding: 11px 13px; color: #b7c8d8; border: 1px solid #35495a; border-radius: 8px; background: rgba(18,27,37,.9); font: 10px/1.6 var(--mono); }
+    .process-popover { display: none; grid-template-columns: minmax(170px, .7fr) minmax(0, 1.3fr); gap: 16px; align-items: center; min-height: 118px; margin: 0 0 18px; padding: 14px 16px; border: 1px solid #168ed3; border-radius: 11px; background: linear-gradient(110deg, #10243a, #101a25 75%); box-shadow: 0 12px 30px #0005; animation: processIn .24s ease-out; }
+    .process-popover:not([hidden]) { display: grid; }
+    @keyframes processIn { from { opacity: .25; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .process-kicker { color: #49bafa; font: 9px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .process-title { margin-top: 6px; color: #f0f6fb; font-size: 15px; font-weight: 680; letter-spacing: -.025em; }
+    .process-copy { margin-top: 5px; color: #aebdca; font-size: 10px; line-height: 1.55; }
+    .process-detail { max-height: 72px; overflow: auto; padding: 9px 11px; color: #bcd5e6; border: 1px solid #274257; border-radius: 8px; background: #0c1520; font: 9px/1.65 var(--mono); }
+    .process-detail strong { color: #71c9fc; font-weight: 600; }
+    .process-more { display: inline-block; margin-top: 7px; padding: 0; color: #8bcdf3; cursor: pointer; border: 0; background: transparent; font: 9px var(--mono); }
+    .process-more:hover { color: #fff; }
+    .process-resources { display: grid; grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; padding-top: 10px; border-top: 1px solid #26394b; }
+    .process-resources-label { color: #8fa9bb; font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .resource-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .resource-item { display: inline-flex; align-items: center; overflow: hidden; border: 1px solid #2d4d62; border-radius: 7px; background: #122335; }
+    .resource-open, .resource-preview-button { min-height: 27px; padding: 6px 8px; color: #cce8f8; border: 0; background: transparent; font: 9px var(--mono); text-decoration: none; }
+    .resource-open:hover, .resource-preview-button:hover { color: #fff; background: #1a3850; }
+    .resource-preview-button { color: #79c8f2; cursor: pointer; border-left: 1px solid #2d4d62; }
+    .resource-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 18px; background: #080a08dc; backdrop-filter: blur(7px); }
+    .resource-backdrop[hidden] { display: none; }
+    .resource-dialog { position: relative; display: flex; width: min(1050px, 100%); height: min(84vh, 820px); min-height: 360px; flex-direction: column; padding: 18px; border: 1px solid #3c6178; border-radius: 16px; background: #111820; box-shadow: 0 25px 100px #000b; }
+    .resource-header { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding-right: 42px; }
+    .resource-header h2 { margin: 6px 0 0; color: #f0f6fb; font-size: 19px; font-weight: 580; letter-spacing: -.04em; }
+    .resource-header-actions { display: flex; align-items: center; }
+    .resource-new-tab { padding: 8px 10px; color: #bfe7fa; border: 1px solid #31536a; border-radius: 7px; background: #152536; font: 10px var(--mono); text-decoration: none; white-space: nowrap; }
+    .resource-new-tab:hover { color: #fff; border-color: #38bdf8; }
+    .resource-note { margin: 12px 0; color: #9eacb8; font-size: 10px; line-height: 1.6; }
+    .resource-frame { width: 100%; min-height: 0; flex: 1; border: 1px solid #2b3c4a; border-radius: 9px; background: #fff; }
+    .stage.is-active { z-index: 2; transform: translateY(-8px) scale(1.035); animation: stageLift .32s ease-out; }
+    @keyframes stageLift { from { transform: translateY(0) scale(1); } to { transform: translateY(-8px) scale(1.035); } }
+
+    .research-section { margin: 23px 0 54px; }
+    .insight-card { min-width: 0; padding: 22px; border: 1px solid #30362f; border-radius: 18px; background: linear-gradient(140deg, #1d211b, #171a16); }
+    .card-label { color: var(--muted); font: 10px var(--mono); letter-spacing: .13em; text-transform: uppercase; }
+    .insight-card h3 { margin: 8px 0 6px; font-size: 19px; font-weight: 560; letter-spacing: -.04em; }
+    .insight-icon { display: grid; width: 32px; height: 32px; margin-top: 16px; place-items: center; color: var(--orange); border: 1px solid #554735; border-radius: 10px; }
+    .insight-card h3 { margin-top: 13px; }
+    .insight-card p { margin: 8px 0 0; color: #abb2a6; font-size: 11px; line-height: 1.75; }
+    .insight-card strong { color: #e4e9dc; font-weight: 600; }
+    .research-note { margin-top: 17px; padding-top: 13px; color: #858e80; border-top: 1px solid #32382f; font-size: 9px; line-height: 1.7; }
+    .footer { display: flex; justify-content: space-between; gap: 20px; padding: 18px 0 30px; color: #747d70; border-top: 1px solid #292f28; font: 9px/1.6 var(--mono); }
+
+    .modal-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 20px; background: #080a08cc; backdrop-filter: blur(7px); }
+    .modal-backdrop[hidden] { display: none; }
+    .modal { position: relative; width: min(550px, 100%); max-height: min(80vh, 620px); overflow: auto; padding: 27px; border: 1px solid #48513f; border-radius: 20px; background: #1b1f1a; box-shadow: 0 25px 100px #0009; animation: appear .18s ease-out; }
+    @keyframes appear { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    .modal-close { position: absolute; top: 16px; right: 16px; display: grid; width: 32px; height: 32px; place-items: center; color: #bdc5b7; cursor: pointer; border: 1px solid #41483d; border-radius: 9px; background: transparent; font-size: 17px; }
+    .modal-kicker { color: var(--lime); font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+    .modal h2 { margin: 12px 40px 10px 0; font-size: 27px; font-weight: 560; letter-spacing: -.05em; }
+    .modal p { color: #b3bbae; font-size: 13px; line-height: 1.8; }
+    .modal-detail { margin-top: 18px; padding: 14px; color: #c8d0c1; border: 1px solid #373f33; border-radius: 11px; background: #141713; font: 11px/1.8 var(--mono); overflow-wrap: anywhere; }
+    .modal-detail strong { color: var(--lime); font-weight: 500; }
+    .modal-tip { margin-top: 14px; padding-left: 12px; color: #909b87; border-left: 2px solid #879b5c; font-size: 11px; line-height: 1.7; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 800px) {
+      .shell { width: min(100% - 36px, 680px); }
+      .topbar { flex-wrap: wrap; padding: 12px 0; }
+      .site-nav { flex-wrap: wrap; justify-content: flex-end; }
+      .hero { grid-template-columns: 1fr; gap: 24px; padding: 50px 0 36px; }
+      .hero-aside { max-width: 430px; }
+      .process-popover { grid-template-columns: 1fr; gap: 10px; }
+      .process-resources { grid-column: 1; grid-template-columns: 1fr; gap: 7px; }
+      .stage { flex-basis: 164px; }
+      .section-heading { align-items: start; flex-direction: column; gap: 8px; }
+    }
+    @media (max-width: 520px) {
+      .shell { width: calc(100% - 28px); }
+      .topbar { min-height: 63px; }
+      .site-nav { gap: 3px; }
+      .nav-link, .projects-menu summary, .theme-toggle { min-height: 34px; padding: 8px; font-size: 10px; }
+      .top-meta { font-size: 9px; }
+      .hero { padding-top: 42px; }
+      h1 { font-size: clamp(43px, 12vw, 61px); }
+      .hero-copy { font-size: 14px; }
+      .architecture { padding: 16px 12px; border-radius: 16px; }
+      .lane-caption { display: none; }
+      .flow { gap: 7px; }
+      .flow-link { flex-basis: 19px; }
+      .stage { flex-basis: 150px; }
+      .flow-controls { align-items: start; flex-direction: column; }
+      .journey-actions { flex-wrap: wrap; }
+      .insight-card { padding: 17px; }
+      .resource-backdrop { padding: 8px; }
+      .resource-dialog { height: 92vh; min-height: 300px; padding: 13px; }
+      .resource-header { align-items: start; flex-direction: column; gap: 10px; }
+      .resource-header-actions { padding-right: 36px; }
+      .resource-header h2 { font-size: 16px; }
+      .footer { flex-direction: column; gap: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell topbar">
+    <a class="brand" href="#" aria-label="RAG in motion home">
+      <span class="brand-mark" aria-hidden="true">R↗</span>
+      <span>FIELD NOTES <span style="color:#7f897b;font-weight:450">/ RAG SYSTEMS</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="nav-link" href="index.html" aria-current="page">Overview</a>
+      <details class="projects-menu">
+        <summary>Projects</summary>
+        <div class="project-menu-items">
+          <a href="index.html" aria-current="page">RAG, in motion</a>
+          <a href="csv-rag-dgx-kubernetes.html">CSV RAG on DGX Kubernetes</a>
+        </div>
+      </details>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" aria-pressed="false">
+        <span data-theme-icon aria-hidden="true">☼</span><span data-theme-label>Light mode</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <div class="eyebrow">A systems map you can touch</div>
+        <h1 id="page-title">RAG, <span>in motion.</span></h1>
+        <p class="hero-copy">Follow private knowledge from raw documents to a cited answer. Explore each stage and watch the data flow—without treating a model’s confidence as proof.</p>
+      </div>
+      <aside class="hero-aside" aria-label="Architecture overview">
+        <div class="aside-label">One architecture / two moments</div>
+        <div class="aside-number">Build <span style="color:#566149">→</span> Ask</div>
+        <div class="aside-copy">Prepare the knowledge once. Retrieve a small, relevant slice each time a question arrives.</div>
+      </aside>
+    </section>
+
+    <section aria-labelledby="architecture-title">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">01 — The architecture</div>
+          <h2 id="architecture-title">Two pipelines. One grounded response.</h2>
+        </div>
+        <div class="section-note">Select any stage for the “why,” the “how,” and the trade-offs.</div>
+      </div>
+
+      <div class="architecture">
+        <div class="process-popover" id="process-popover" aria-live="polite" hidden>
+          <div>
+            <div class="process-kicker" id="process-kicker"></div>
+            <div class="process-title" id="process-title"></div>
+            <div class="process-copy" id="process-copy"></div>
+            <button class="process-more" id="process-more" type="button">More stage notes ↗</button>
+          </div>
+          <div class="process-detail" id="process-detail"></div>
+          <div class="process-resources">
+            <div class="process-resources-label">Official docs & examples</div>
+            <div class="resource-list" id="stage-resources"></div>
+          </div>
+        </div>
+        <div class="lane">
+          <div class="lane-head">
+            <div class="lane-title"><span class="lane-number">A</span> Knowledge preparation <span class="lane-number">· OFFLINE / RE-RUN ON CHANGE</span></div>
+            <div class="lane-caption">SOURCE → SEARCHABLE INDEX</div>
+          </div>
+          <div class="flow ingest" id="ingest-flow" aria-label="Ingestion pipeline">
+            <button class="stage" data-stage="source" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">01</span><span class="stage-icon" aria-hidden="true">▤</span></span>
+              <span class="stage-name">Source data</span>
+              <span class="stage-desc">CSV catalog, PDFs, docs, or records.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="chunk" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">02</span><span class="stage-icon" aria-hidden="true">⌁</span></span>
+              <span class="stage-name">Parse & serialize</span>
+              <span class="stage-desc">Turn each catalog row into labeled text.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="embed" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">03</span><span class="stage-icon" aria-hidden="true">⠿</span></span>
+              <span class="stage-name">MiniLM vectors</span>
+              <span class="stage-desc">Example encoder: 384-dimensional vectors.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="index" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">04</span><span class="stage-icon" aria-hidden="true">▥</span></span>
+              <span class="stage-name">FAISS + metadata</span>
+              <span class="stage-desc">Index vectors; keep source records linked.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="pipeline-bridge">↓ &nbsp; ONLINE QUERY FLOW LOADS INDEXED VECTORS + SOURCE METADATA &nbsp; ↓</div>
+
+        <div class="lane">
+          <div class="lane-head">
+            <div class="lane-title"><span class="lane-number">B</span> Question → answer <span class="lane-number">· ONLINE / PER QUESTION</span></div>
+            <div class="lane-caption">RETRIEVE → GROUND → RESPOND</div>
+          </div>
+          <div class="flow answer" id="query-flow" aria-label="Retrieval and generation pipeline">
+            <button class="stage" data-stage="question" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">01</span><span class="stage-icon" aria-hidden="true">⌕</span></span>
+              <span class="stage-name">User query</span>
+              <span class="stage-desc">Question enters the online flow.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="encode-query" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">02</span><span class="stage-icon" aria-hidden="true">⠿</span></span>
+              <span class="stage-name">Query encoder</span>
+              <span class="stage-desc">Use the same embedding space as the index.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="retrieve" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">03</span><span class="stage-icon" aria-hidden="true">◎</span></span>
+              <span class="stage-name">FAISS top-k</span>
+              <span class="stage-desc">Rank nearest vectors; map hits to source text.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="context" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">04</span><span class="stage-icon" aria-hidden="true">⊞</span></span>
+              <span class="stage-name">Context builder</span>
+              <span class="stage-desc">Deduplicate, format, and attach provenance.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="generate" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">05</span><span class="stage-icon" aria-hidden="true">✳</span></span>
+              <span class="stage-name">Grounded response</span>
+              <span class="stage-desc">Generate from retrieved evidence; cite sources.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+            <span class="flow-link" aria-hidden="true"></span>
+            <button class="stage" data-stage="tts" aria-haspopup="dialog">
+              <span class="stage-top"><span class="stage-index">06</span><span class="stage-icon" aria-hidden="true">♫</span></span>
+              <span class="stage-name">Optional speech</span>
+              <span class="stage-desc">A TTS service can voice the answer.</span>
+              <span class="stage-open">Open stage ↗</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="flow-controls">
+          <div class="journey-actions">
+            <button class="run-button" id="run-button" type="button"><span class="play" aria-hidden="true">▶</span> Run pipeline</button>
+            <button class="journey-secondary" id="step-journey" type="button">Step once</button>
+            <button class="journey-secondary" id="reset-journey" type="button">Reset</button>
+          </div>
+          <div class="control-hint">Follow the signal or step through the reference flow.</div>
+          <div class="flow-status" id="flow-status" aria-live="polite">READY WHEN YOU ARE</div>
+        </div>
+        <div class="journey-note" id="journey-note" aria-live="polite">Ready · Offline indexing prepares the vectors; each query uses the index to retrieve evidence.</div>
+      </div>
+    </section>
+
+    <section class="research-section" aria-label="Researcher's lens">
+      <aside class="insight-card">
+        <div class="card-label">02 — Researcher's lens</div>
+        <div class="insight-icon" aria-hidden="true">!</div>
+        <h3>Retrieval helps. It doesn’t guarantee truth.</h3>
+        <p>A useful RAG system depends on <strong>source quality, chunk boundaries, retrieval recall, context selection, and evaluation</strong>. A fluent answer can still omit evidence, misuse it, or cite a source that does not support the claim.</p>
+        <p>Measure retrieval and answer quality separately. Check citations against the actual retrieved passage, and provide a clear “not found” path when evidence is weak.</p>
+        <div class="research-note">DESIGN PRINCIPLE · Show provenance, preserve metadata, test failure cases, and keep humans in the loop where the stakes require it.</div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    <span>RAG / RETRIEVAL-AUGMENTED GENERATION</span>
+    <span>Conceptual architecture · Implementations vary by data, latency, and risk</span>
+  </footer>
+
+  <div class="modal-backdrop" id="modal-backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-copy">
+      <button class="modal-close" id="modal-close" type="button" aria-label="Close explanation">×</button>
+      <div class="modal-kicker" id="modal-kicker"></div>
+      <h2 id="modal-title"></h2>
+      <p id="modal-copy"></p>
+      <div class="modal-detail" id="modal-detail"></div>
+      <div class="modal-tip" id="modal-tip"></div>
+    </section>
+  </div>
+
+  <div class="resource-backdrop" id="resource-backdrop" hidden>
+    <section class="resource-dialog" role="dialog" aria-modal="true" aria-labelledby="resource-title" aria-describedby="resource-note">
+      <header class="resource-header">
+        <div>
+          <div class="modal-kicker">RESOURCE PREVIEW · EXTERNAL SITE</div>
+          <h2 id="resource-title">Documentation preview</h2>
+        </div>
+        <div class="resource-header-actions">
+          <a class="resource-new-tab" id="resource-new-tab" href="#" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a>
+          <button class="modal-close" id="resource-close" type="button" aria-label="Close resource preview">×</button>
+        </div>
+      </header>
+      <p class="resource-note" id="resource-note">Preview is best-effort; some providers block iframes. Use “Open in new tab” if needed. Create NVIDIA credentials on NVIDIA Build. Static HTML cannot protect API keys—live NIM or speech calls need a server-side endpoint; this page never requests or stores a key.</p>
+      <iframe class="resource-frame" id="resource-frame" title="External documentation preview" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-forms allow-scripts allow-popups"></iframe>
+    </section>
+  </div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const themeToggle = document.getElementById("theme-toggle");
+      const themeIcon = themeToggle.querySelector("[data-theme-icon]");
+      const themeLabel = themeToggle.querySelector("[data-theme-label]");
+      function applyTheme(theme) {
+        const isLight = theme === "light";
+        document.documentElement.dataset.theme = isLight ? "light" : "dark";
+        themeToggle.setAttribute("aria-pressed", String(isLight));
+        themeToggle.setAttribute("aria-label", `Switch to ${isLight ? "dark" : "light"} mode`);
+        themeIcon.textContent = isLight ? "☾" : "☼";
+        themeLabel.textContent = isLight ? "Dark mode" : "Light mode";
+        document.querySelector('meta[name="theme-color"]').content = isLight ? "#f4f6f1" : "#10120f";
+        document.querySelectorAll(".stage").forEach(stage => {
+          if (isLight) stage.style.setProperty("background-color", "rgba(255,255,255,.95)");
+          else stage.style.removeProperty("background-color");
+        });
+      }
+      let savedTheme = "dark";
+      try {
+        const preference = window.localStorage.getItem("rag-site-theme");
+        if (preference === "light" || preference === "dark") savedTheme = preference;
+      } catch (error) {
+        console.warn("Could not read the saved theme preference; using dark mode.", error);
+      }
+      applyTheme(savedTheme);
+      themeToggle.addEventListener("click", () => {
+        const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+        applyTheme(nextTheme);
+        try {
+          window.localStorage.setItem("rag-site-theme", nextTheme);
+        } catch (error) {
+          console.warn("Could not save the theme preference; the current page theme is still updated.", error);
+        }
+      });
+
+      const stages = {
+        source: {
+          lane: "Knowledge preparation · stage 01", title: "Source data",
+          copy: "This reference flow starts with a tabular book catalog loaded into a dataframe. In a real deployment, the source could instead be PDFs, support articles, or records from an authorized data source.",
+          detail: "<strong>Developer tool</strong><br>pandas.read_csv(\"data.csv\")<br><br><strong>Sample fields</strong><br>Author · Title · Publisher / Place · Year",
+          tip: "The supplied architecture illustrates a 10-book corpus. In production, preserve source IDs and metadata through every transformation.",
+          resources: [
+            { label: "pandas · read_csv", url: "https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html" },
+            { label: "Hugging Face · dataset hub", url: "https://huggingface.co/datasets" },
+            { label: "Hugging Face · load datasets", url: "https://huggingface.co/docs/datasets/en/loading" }
+          ]
+        },
+        chunk: {
+          lane: "Knowledge preparation · stage 02", title: "Parse & serialize",
+          copy: "Turn each catalog row into a contiguous text representation so an embedding model can encode its fields together. For longer documents, parsing and chunk boundaries need to preserve the context needed to answer questions.",
+          detail: "<strong>Row-to-text pattern</strong><br>df.apply(lambda row: f\"{row['author']} - {row['title']} - {row['publisher']} - {row['year']}\", axis=1)<br><br><strong>Output</strong><br>one text representation per catalog record",
+          tip: "Chunk size and overlap are design choices, not universal constants. Evaluate whether the retrieved passage contains enough context to answer real questions.",
+          resources: [
+            { label: "pandas · DataFrame.apply", url: "https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.apply.html" },
+            { label: "Pydantic · validation", url: "https://pydantic.dev/docs/validation/latest/" }
+          ]
+        },
+        embed: {
+          lane: "Knowledge preparation · stage 03", title: "Encode with MiniLM",
+          copy: "The supplied architecture uses the all-MiniLM-L6-v2 sentence encoder as an example. It maps each text representation into a 384-dimensional vector. The vectors and dimensions shown here describe that reference configuration; this page does not load the model.",
+          detail: "<strong>Example contract</strong><br>model: all-MiniLM-L6-v2<br>shape: [number_of_rows, 384]<br>dtype: float32<br><br>Unit normalization is optional; when applied, it enables cosine-ranking equivalence with squared L2 distance.",
+          tip: "Encode query and document text with the same model and preprocessing. If either changes, rebuild the document vectors.",
+          resources: [
+            { label: "Hugging Face · MiniLM model", url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2" },
+            { label: "Sentence Transformers · similarity", url: "https://www.sbert.net/docs/sentence_transformer/usage/semantic_textual_similarity.html" }
+          ]
+        },
+        index: {
+          lane: "Knowledge preparation · stage 04", title: "FAISS index & metadata",
+          copy: "The reference uses FAISS IndexFlatL2 with 384-dimensional float32 vectors, alongside a separate metadata mapping back to source text. IndexFlatL2 compares against every indexed vector: it is exact search, not an approximate index.",
+          detail: "<strong>Example developer calls</strong><br>index = faiss.IndexFlatL2(384)<br>index.add(embedding_array)<br>distances, ids = index.search(query_vector, top_k)<br><br>Persist the index and its matching metadata together.",
+          tip: "L2 distance is lower for closer vectors. With normalized vectors, squared L2 ranking and cosine-similarity ranking are equivalent. Keep index IDs aligned with metadata.",
+          resources: [
+            { label: "FAISS · getting started", url: "https://github.com/facebookresearch/faiss/wiki/Getting-started" },
+            { label: "NumPy · save arrays", url: "https://numpy.org/doc/stable/reference/generated/numpy.save.html" }
+          ]
+        },
+        question: {
+          lane: "Question → answer · stage 01", title: "User query",
+          copy: "A user's question enters the online path. The reference diagram uses “organic chemistry” as an example; replace it with a representative query from your own domain.",
+          detail: "<strong>Example request</strong><br>query = \"organic chemistry\"<br>top_k = 2<br><br>Check identity and source permissions before searching private data.",
+          tip: "Query history may contain sensitive information. Apply appropriate access controls, retention limits, and privacy protections.",
+          resources: [
+            { label: "Hugging Face · text generation requests", url: "https://huggingface.co/docs/inference-providers/en/tasks/text-generation" },
+            { label: "MDN · search input", url: "https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/search" }
+          ]
+        },
+        "encode-query": {
+          lane: "Question → answer · stage 02", title: "Encode the query",
+          copy: "Encode the user's question with the same sentence-embedding model and normalization settings used during indexing. This compatibility is what makes vector distances meaningful.",
+          detail: "<strong>Example flow</strong><br>query_vector = model.encode([query], normalize_embeddings=True)<br>query_vector = query_vector.astype(\"float32\")<br><br>Expected shape: [1, 384]",
+          tip: "The model is illustrated from the supplied reference; the interactive page does not make a model or API call.",
+          resources: [
+            { label: "Hugging Face · MiniLM model", url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2" },
+            { label: "Sentence Transformers · embeddings", url: "https://www.sbert.net/docs/sentence_transformer/usage/semantic_textual_similarity.html" }
+          ]
+        },
+        retrieve: {
+          lane: "Question → answer · stage 03", title: "FAISS nearest-neighbor search",
+          copy: "Search the reference FAISS index for the top-k closest vectors, then map returned IDs back to catalog text. The distances shown in a real FAISS result are L2 distances—not percentages or probabilities.",
+          detail: "<strong>Example</strong><br>distances, ids = index.search(query_vector, top_k=2)<br><br>Filter padded IDs (such as -1) before looking up metadata.",
+          tip: "Retrieval is a bottleneck: if relevant evidence is not found, the generator cannot ground its response in it. Evaluate retrieval recall and ranking on representative queries.",
+          resources: [
+            { label: "FAISS · search guide", url: "https://github.com/facebookresearch/faiss/wiki/Getting-started" },
+            { label: "Hugging Face · retrieval-augmented generation", url: "https://huggingface.co/docs/transformers/model_doc/rag" }
+          ]
+        },
+        context: {
+          lane: "Question → answer · stage 04", title: "Build grounded context",
+          copy: "Map retrieved IDs to source records, remove duplicates if needed, and assemble a bounded prompt context. Preserve enough source information to make the answer verifiable.",
+          detail: "<strong>Prompt ingredients</strong><br>Instructions + user question + retrieved records + source IDs<br><br>Keep the original source text and metadata available for citations.",
+          tip: "More context is not automatically better. Duplicates, irrelevant text, conflicting versions, and prompt injection in retrieved content can undermine results.",
+          resources: [
+            { label: "Hugging Face · RAG concepts", url: "https://huggingface.co/docs/transformers/model_doc/rag" },
+            { label: "Pydantic · validate records", url: "https://pydantic.dev/docs/validation/latest/" }
+          ]
+        },
+        generate: {
+          lane: "Question → answer · stage 05", title: "Generate a grounded response",
+          copy: "The supplied architecture illustrates an NVIDIA Nemotron model behind a generation service. A real request passes the retrieved context to the configured model and asks it to answer from that evidence.",
+          detail: "<strong>Safe prompt pattern</strong><br>Use the supplied sources for factual claims.<br>Cite the supporting record.<br>If the evidence is insufficient, say so.<br><br>Model and service are replaceable components.",
+          tip: "A low temperature does not prevent hallucinations. Check answer faithfulness and citation correctness through evaluation. Sign in to NVIDIA Build for API-key setup; never place that private key in this HTML. A hosted static site needs a server-side endpoint for live API calls.",
+          resources: [
+            { label: "NVIDIA Build · sign in / get API key", url: "https://build.nvidia.com/nvidia/nemotron-3.5-super-vl-120b-a12b" },
+            { label: "NVIDIA NIM · getting started", url: "https://docs.nvidia.com/nim/large-language-models/latest/get-started/index.html" },
+            { label: "NVIDIA NIM · API reference", url: "https://docs.api.nvidia.com/nim/reference/overview" }
+          ]
+        },
+        tts: {
+          lane: "Question → answer · stage 06 · optional", title: "Optional text-to-speech",
+          copy: "The reference adds NVIDIA Riva as an optional final speech service. Text-to-speech is not required for RAG; it is a presentation layer that can turn the generated answer into audio.",
+          detail: "<strong>Reference example</strong><br>NVIDIA Riva · gRPC client · Aria (en-US)<br><br>Text answer + citations remain available alongside audio.",
+          tip: "Keep speech synthesis downstream of the grounded text response so users can still inspect the answer and its sources.",
+          resources: [
+            { label: "NVIDIA Riva · TTS guide", url: "https://docs.nvidia.com/deeplearning/riva/user-guide/docs/tts/tts-overview.html" },
+            { label: "NVIDIA · try speech demo", url: "https://build.nvidia.com/explore/speech" },
+            { label: "NVIDIA Riva · documentation", url: "https://docs.nvidia.com/riva/" }
+          ]
+        }
+      };
+
+      const backdrop = document.getElementById("modal-backdrop");
+      const closeButton = document.getElementById("modal-close");
+      const resourceBackdrop = document.getElementById("resource-backdrop");
+      const resourceFrame = document.getElementById("resource-frame");
+      const resourceCloseButton = document.getElementById("resource-close");
+      const resourceNewTab = document.getElementById("resource-new-tab");
+      const runButton = document.getElementById("run-button");
+      const stepJourneyButton = document.getElementById("step-journey");
+      const resetJourneyButton = document.getElementById("reset-journey");
+      const flowStatus = document.getElementById("flow-status");
+      const journeyNote = document.getElementById("journey-note");
+      const journeySteps = [
+        ["ingest-flow", "source", "Read the source catalog. Preserve the original row and its identifiers."],
+        ["ingest-flow", "chunk", "Parse and serialize each row into labeled text for retrieval."],
+        ["ingest-flow", "embed", "Encode the text. The supplied reference illustrates all-MiniLM-L6-v2 with 384-dimensional vectors."],
+        ["ingest-flow", "index", "Add vectors to FAISS and persist matching source metadata."],
+        ["query-flow", "question", "Receive a question; check which indexed sources this user may access."],
+        ["query-flow", "encode-query", "Encode the question with the same model and preprocessing as the indexed records."],
+        ["query-flow", "retrieve", "Run exact FAISS L2 top-k search and map result IDs back to source records."],
+        ["query-flow", "context", "Deduplicate and assemble a bounded prompt with source references."],
+        ["query-flow", "generate", "Generate an answer from the supplied evidence; verify the citations."],
+        ["query-flow", "tts", "Optionally synthesize speech from the answer. The text and citations remain inspectable."]
+      ];
+      let activeTrigger = null;
+      let journeyTimer = null;
+      let journeyIndex = -1;
+      let journeyRunning = false;
+      let currentStageKey = null;
+      let activeResourceTrigger = null;
+
+      function openStage(key, trigger) {
+        const stage = stages[key];
+        if (!stage) return;
+        activeTrigger = trigger;
+        document.getElementById("modal-kicker").textContent = stage.lane;
+        document.getElementById("modal-title").textContent = stage.title;
+        document.getElementById("modal-copy").textContent = stage.copy;
+        document.getElementById("modal-detail").innerHTML = stage.detail;
+        document.getElementById("modal-tip").textContent = stage.tip;
+        backdrop.hidden = false;
+        closeButton.focus();
+      }
+
+      function renderStageResources(resources) {
+        const resourceList = document.getElementById("stage-resources");
+        resourceList.replaceChildren();
+        resources.forEach(resource => {
+          const item = document.createElement("div");
+          item.className = "resource-item";
+          const link = document.createElement("a");
+          link.className = "resource-open";
+          link.href = resource.url;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = `${resource.label} ↗`;
+          const previewButton = document.createElement("button");
+          previewButton.className = "resource-preview-button";
+          previewButton.type = "button";
+          previewButton.textContent = "Preview";
+          previewButton.setAttribute("aria-label", `Preview ${resource.label} in this page`);
+          previewButton.addEventListener("click", () => openResourcePreview(resource, previewButton));
+          item.append(link, previewButton);
+          resourceList.append(item);
+        });
+      }
+
+      function openResourcePreview(resource, trigger) {
+        if (!resource.url.startsWith("https://")) throw new Error("Resource previews must use HTTPS.");
+        activeResourceTrigger = trigger;
+        document.getElementById("resource-title").textContent = resource.label;
+        resourceNewTab.href = resource.url;
+        resourceFrame.title = `${resource.label} preview`;
+        resourceFrame.src = resource.url;
+        resourceBackdrop.hidden = false;
+        resourceCloseButton.focus();
+      }
+
+      function closeResourcePreview() {
+        resourceBackdrop.hidden = true;
+        resourceFrame.src = "about:blank";
+        if (activeResourceTrigger && activeResourceTrigger.isConnected) activeResourceTrigger.focus();
+        activeResourceTrigger = null;
+      }
+
+      function closeModal() {
+        backdrop.hidden = true;
+        if (activeTrigger) activeTrigger.focus();
+      }
+
+      function stopJourney() {
+        if (journeyTimer) window.clearTimeout(journeyTimer);
+        journeyTimer = null;
+        journeyRunning = false;
+        document.querySelectorAll(".flow-link").forEach(link => link.classList.remove("is-flowing"));
+        runButton.disabled = false;
+        runButton.innerHTML = '<span class="play" aria-hidden="true">▶</span> Run pipeline';
+        stepJourneyButton.disabled = journeyIndex >= journeySteps.length - 1;
+      }
+
+      function showProcessPopup(index) {
+        const [flowId, key] = journeySteps[index];
+        const stage = stages[key];
+        currentStageKey = key;
+        document.getElementById("process-kicker").textContent = `STEP ${String(index + 1).padStart(2, "0")} / ${String(journeySteps.length).padStart(2, "0")} · ${flowId === "ingest-flow" ? "OFFLINE INDEXING" : "ONLINE QUERY"}`;
+        document.getElementById("process-title").textContent = stage.title;
+        document.getElementById("process-copy").textContent = stage.copy;
+        document.getElementById("process-detail").innerHTML = stage.detail;
+        renderStageResources(stage.resources);
+        document.getElementById("process-popover").hidden = false;
+      }
+
+      function activateJourneyStep(index) {
+        const [flowId, key, message] = journeySteps[index];
+        const flow = document.getElementById(flowId);
+        const stage = flow.querySelector(`[data-stage="${key}"]`);
+        document.querySelectorAll(".stage.is-active").forEach(item => item.classList.remove("is-active"));
+        journeySteps.slice(0, index).forEach(([, previousKey]) => {
+          const previousStage = document.querySelector(`.stage[data-stage="${previousKey}"]`);
+          if (previousStage) previousStage.classList.add("is-visited");
+        });
+        stage.classList.add("is-active", "is-visited");
+        const flowRect = flow.getBoundingClientRect();
+        const stageRect = stage.getBoundingClientRect();
+        const targetLeft = flow.scrollLeft + stageRect.left - flowRect.left - (flow.clientWidth - stageRect.width) / 2;
+        flow.scrollTo({
+          left: Math.max(0, targetLeft),
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+        });
+        document.querySelectorAll(".flow-link").forEach(link => link.classList.remove("is-flowing"));
+        const next = journeySteps[index + 1];
+        if (next && next[0] === flowId) {
+          const links = [...flow.querySelectorAll(".flow-link")];
+          const stageIndex = [...flow.querySelectorAll(".stage")].indexOf(stage);
+          if (links[stageIndex]) links[stageIndex].classList.add("is-flowing");
+        }
+        journeyIndex = index;
+        flowStatus.textContent = `${String(index + 1).padStart(2, "0")} / ${String(journeySteps.length).padStart(2, "0")} · ${stages[key].title.toUpperCase()}`;
+        journeyNote.textContent = `Step ${index + 1}: ${message}`;
+        showProcessPopup(index);
+        stepJourneyButton.disabled = index >= journeySteps.length - 1;
+      }
+
+      function stepJourney() {
+        stopJourney();
+        if (journeyIndex >= journeySteps.length - 1) return;
+        activateJourneyStep(journeyIndex + 1);
+      }
+
+      function resetJourney() {
+        stopJourney();
+        journeyIndex = -1;
+        document.querySelectorAll(".stage").forEach(stage => stage.classList.remove("is-active", "is-visited"));
+        document.querySelectorAll(".flow-link").forEach(link => link.classList.remove("is-flowing"));
+        document.getElementById("process-popover").hidden = true;
+        currentStageKey = null;
+        flowStatus.textContent = "READY WHEN YOU ARE";
+        journeyNote.textContent = "Ready · Offline indexing prepares the vectors; each query uses the index to retrieve evidence.";
+        stepJourneyButton.disabled = false;
+      }
+
+      function runJourney() {
+        if (journeyRunning) return;
+        if (journeyIndex >= journeySteps.length - 1) resetJourney();
+        journeyRunning = true;
+        runButton.disabled = true;
+        runButton.textContent = "Pipeline running…";
+        stepJourneyButton.disabled = true;
+        const advance = () => {
+          const nextIndex = journeyIndex + 1;
+          if (nextIndex >= journeySteps.length) {
+            flowStatus.textContent = "JOURNEY COMPLETE";
+            journeyNote.textContent = "Complete · Indexed evidence has been retrieved, passed to generation, and optionally voiced.";
+            stopJourney();
+            return;
+          }
+          activateJourneyStep(nextIndex);
+          journeyTimer = window.setTimeout(advance, 1150);
+        };
+        advance();
+      }
+
+      document.querySelectorAll(".stage").forEach(button => {
+        button.addEventListener("click", () => {
+          stopJourney();
+          const index = journeySteps.findIndex(([, key]) => key === button.dataset.stage);
+          if (index >= 0) activateJourneyStep(index);
+        });
+      });
+      document.getElementById("process-more").addEventListener("click", () => {
+        if (!currentStageKey) return;
+        const trigger = document.querySelector(`.stage[data-stage="${currentStageKey}"]`);
+        openStage(currentStageKey, trigger);
+      });
+      closeButton.addEventListener("click", closeModal);
+      resourceCloseButton.addEventListener("click", closeResourcePreview);
+      backdrop.addEventListener("click", event => {
+        if (event.target === backdrop) closeModal();
+      });
+      resourceBackdrop.addEventListener("click", event => {
+        if (event.target === resourceBackdrop) closeResourcePreview();
+      });
+      document.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return;
+        if (!resourceBackdrop.hidden) closeResourcePreview();
+        else if (!backdrop.hidden) closeModal();
+      });
+      runButton.addEventListener("click", runJourney);
+      stepJourneyButton.addEventListener("click", stepJourney);
+      resetJourneyButton.addEventListener("click", resetJourney);
+    })();
+  </script>
+</body>
+</html>

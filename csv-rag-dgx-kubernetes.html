@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111511">
+  <meta name="description" content="Interactive CSV RAG deployment architecture for NVIDIA DGX and Kubernetes, with inspectable pipeline stages and production notes.">
+  <title>CSV RAG on NVIDIA DGX Kubernetes — RAG Projects</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111511;
+      --surface: #191f1a;
+      --surface-raised: #202820;
+      --line: #364137;
+      --text: #edf2e8;
+      --muted: #a0ad9e;
+      --faint: #768274;
+      --lime: #d3f36b;
+      --blue: #83c9f6;
+      --orange: #ffd08f;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f3f6f1;
+      --surface: #fff;
+      --surface-raised: #edf2e9;
+      --line: #d2dbcf;
+      --text: #1b251c;
+      --muted: #52604f;
+      --faint: #6a7667;
+      --lime: #567d0c;
+      --blue: #126da7;
+      --orange: #9c5d15;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-width: 0;
+      margin: 0;
+      color: var(--text);
+      background: radial-gradient(ellipse at 87% 2%, rgba(147,177,105,.10), transparent 34rem), var(--bg);
+    }
+    button, input { font: inherit; }
+    a { color: inherit; }
+    .shell { width: min(1440px, calc(100% - 64px)); margin-inline: auto; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 76px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 720; letter-spacing: -.02em; text-decoration: none; }
+    .brand-mark { display: grid; width: 29px; height: 29px; place-items: center; color: var(--lime); border: 1px solid var(--line); border-radius: 9px; font: 13px var(--mono); }
+    .site-nav { display: flex; align-items: center; gap: 8px; }
+    .nav-link, .projects-menu summary, .theme-toggle { min-height: 36px; padding: 9px 11px; color: var(--muted); border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 11px; text-decoration: none; cursor: pointer; }
+    .nav-link:hover, .projects-menu summary:hover, .theme-toggle:hover { color: var(--text); border-color: var(--line); background: var(--surface); }
+    .nav-link[aria-current="page"] { color: var(--text); }
+    .projects-menu { position: relative; }
+    .projects-menu summary { list-style: none; }
+    .projects-menu summary::-webkit-details-marker { display: none; }
+    .projects-menu summary::after { margin-left: 7px; content: "⌄"; }
+    .project-menu-items { position: absolute; z-index: 8; top: calc(100% + 7px); right: 0; display: grid; width: 255px; gap: 4px; padding: 7px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); box-shadow: 0 16px 38px #0005; }
+    .project-menu-items a { padding: 10px; color: var(--muted); border-radius: 7px; font-size: 11px; text-decoration: none; }
+    .project-menu-items a:hover, .project-menu-items a[aria-current="page"] { color: var(--text); background: var(--surface-raised); }
+    .theme-toggle { display: inline-flex; align-items: center; gap: 7px; border-color: var(--line); white-space: nowrap; }
+
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 42px; align-items: end; padding: 58px 0 36px; }
+    .eyebrow, .section-kicker { color: var(--lime); font: 10px var(--mono); letter-spacing: .15em; text-transform: uppercase; }
+    h1 { max-width: 900px; margin: 14px 0 14px; font-size: clamp(42px, 6vw, 75px); font-weight: 570; line-height: .99; letter-spacing: -.07em; }
+    h1 span { color: var(--lime); }
+    .hero-copy { max-width: 760px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+    .hero-aside { padding: 17px 0 3px 20px; border-left: 1px solid var(--line); }
+    .aside-label { color: var(--muted); font: 9px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .aside-number { margin: 9px 0 5px; font-size: 31px; letter-spacing: -.06em; }
+    .aside-copy { color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 28px; }
+    .stat { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .stat strong { display: block; color: var(--lime); font: 18px var(--mono); }
+    .stat span { display: block; margin-top: 5px; color: var(--muted); font-size: 10px; }
+
+    .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin: 32px 0 15px; }
+    .section-heading h2 { margin: 7px 0 0; font-size: 22px; font-weight: 560; letter-spacing: -.04em; }
+    .section-note { max-width: 520px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .visual-layout { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(280px, .7fr); gap: 15px; align-items: stretch; }
+    .visual-card, .detail-card, .blueprint-card, .contract-card, .checklist-card, .references-card { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+    .visual-card { min-width: 0; padding: 12px; }
+    .visual-topline { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 3px 3px 11px; color: var(--muted); font: 9px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .visual-topline strong { color: var(--blue); font-weight: 500; }
+    .image-wrap { position: relative; overflow: hidden; border: 1px solid #d5d9de; border-radius: 11px; background: #fff; line-height: 0; }
+    .architecture-image { display: block; width: 100%; height: auto; }
+    .hotspot {
+      position: absolute;
+      z-index: 2;
+      left: var(--x);
+      top: var(--y);
+      display: grid;
+      width: clamp(27px, 3.2vw, 43px);
+      aspect-ratio: 1;
+      padding: 0;
+      place-items: center;
+      transform: translate(-50%, -50%);
+      color: #10202b;
+      cursor: pointer;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      background: #8fca38;
+      box-shadow: 0 0 0 2px #315314, 0 2px 12px #10201588;
+      font: 10px var(--mono);
+      line-height: 1;
+      transition: transform .18s, background .18s, box-shadow .18s;
+    }
+    .hotspot:hover, .hotspot:focus-visible { z-index: 4; transform: translate(-50%, -50%) scale(1.16); outline: 3px solid #fff; outline-offset: 2px; }
+    .hotspot[aria-pressed="true"] { background: #39bdf8; box-shadow: 0 0 0 3px #0e4a6b, 0 0 20px #159cf3aa; }
+    .hotspot[data-kind="gpu"] { background: #d4ef55; }
+    .hotspot[data-kind="api"] { background: #43b9fb; }
+    .hotspot[data-kind="gpu"][aria-pressed="true"], .hotspot[data-kind="api"][aria-pressed="true"] { background: #38bdf8; }
+    .flow-token { position: absolute; z-index: 3; left: 12.3%; top: 35.2%; width: clamp(8px, 1vw, 12px); aspect-ratio: 1; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; background: #04a4ff; box-shadow: 0 0 0 3px #087cb788, 0 0 17px #007bff; opacity: 0; pointer-events: none; transition: left .65s cubic-bezier(.2,.8,.2,1), top .65s cubic-bezier(.2,.8,.2,1), opacity .2s; }
+    .flow-token.is-visible { opacity: 1; }
+    .visual-controls { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 2px 0; }
+    .control-group { display: flex; flex-wrap: wrap; gap: 7px; }
+    .button { min-height: 35px; padding: 8px 11px; color: var(--text); cursor: pointer; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); font-size: 10px; font-weight: 650; }
+    .button:hover { border-color: var(--blue); }
+    .button.primary { color: #101a0d; border-color: var(--lime); background: var(--lime); }
+    .button:disabled { opacity: .48; cursor: default; }
+    .flow-status { color: var(--blue); font: 9px var(--mono); text-align: right; }
+    .detail-card { display: flex; min-height: 100%; flex-direction: column; padding: 19px; }
+    .detail-kicker { color: var(--blue); font: 9px var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+    .detail-card h3 { margin: 10px 0 9px; font-size: 20px; font-weight: 570; letter-spacing: -.04em; }
+    .detail-copy { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.75; }
+    .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+    .tag { padding: 5px 7px; color: var(--lime); border: 1px solid var(--line); border-radius: 999px; background: var(--surface-raised); font: 9px var(--mono); }
+    .detail-subhead { margin: 19px 0 7px; color: var(--faint); font: 9px var(--mono); letter-spacing: .11em; text-transform: uppercase; }
+    .detail-list { display: grid; gap: 8px; margin: 0; padding-left: 17px; color: var(--muted); font-size: 10px; line-height: 1.65; }
+    .detail-list li::marker { color: var(--lime); }
+    .detail-warning { margin-top: auto; padding: 10px; color: var(--muted); border-left: 2px solid var(--orange); background: var(--surface-raised); font-size: 9px; line-height: 1.6; }
+
+    .blueprint-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 16px; }
+    .blueprint-card { padding: 15px; }
+    .blueprint-card .card-index { color: var(--blue); font: 9px var(--mono); }
+    .blueprint-card h3 { margin: 9px 0 7px; font-size: 13px; font-weight: 650; }
+    .blueprint-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
+    .bottom-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin: 16px 0 48px; }
+    .contract-card, .checklist-card, .references-card { min-width: 0; padding: 18px; }
+    .contract-card h3, .checklist-card h3, .references-card h3 { margin: 0 0 12px; font-size: 15px; font-weight: 620; }
+    .contract-card pre { overflow-x: auto; margin: 0; padding: 13px; color: #cce0cf; border: 1px solid var(--line); border-radius: 9px; background: #111713; font: 10px/1.7 var(--mono); }
+    html[data-theme="light"] .contract-card pre { color: #23402b; background: #f3f7f0; }
+    .checklist { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+    .checklist li { display: grid; grid-template-columns: 19px 1fr; gap: 8px; color: var(--muted); font-size: 10px; line-height: 1.65; }
+    .checklist li::before { display: grid; width: 18px; height: 18px; place-items: center; content: "✓"; color: var(--lime); border: 1px solid var(--line); border-radius: 5px; font: 10px var(--mono); }
+    .metrics-note { margin: 12px 0 0; padding-top: 11px; color: var(--muted); border-top: 1px solid var(--line); font-size: 9px; line-height: 1.7; }
+    .references-card { grid-column: 1 / -1; }
+    .reference-links { display: flex; flex-wrap: wrap; gap: 7px; }
+    .reference-links a { padding: 8px 10px; color: var(--blue); border: 1px solid var(--line); border-radius: 8px; background: var(--surface-raised); font-size: 10px; text-decoration: none; }
+    .reference-links a:hover { color: var(--text); border-color: var(--blue); }
+    .footer { display: flex; justify-content: space-between; gap: 16px; padding: 17px 0 27px; color: var(--faint); border-top: 1px solid var(--line); font: 9px/1.6 var(--mono); }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 980px) {
+      .visual-layout { grid-template-columns: 1fr; }
+      .detail-card { min-height: 0; }
+      .detail-warning { margin-top: 15px; }
+      .blueprint-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .shell { width: min(100% - 32px, 600px); }
+      .topbar { flex-wrap: wrap; padding: 10px 0; }
+      .site-nav { flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
+      .nav-link, .projects-menu summary, .theme-toggle { min-height: 33px; padding: 8px; font-size: 10px; }
+      .hero { grid-template-columns: 1fr; gap: 22px; padding: 42px 0 28px; }
+      .hero-aside { max-width: 430px; }
+      .stats { gap: 6px; }
+      .stat { padding: 10px; }
+      .stat strong { font-size: 15px; }
+      .visual-card { padding: 7px; }
+      .visual-topline { align-items: flex-start; flex-direction: column; gap: 5px; }
+      .visual-controls { align-items: flex-start; flex-direction: column; }
+      .flow-status { text-align: left; }
+      .bottom-grid { grid-template-columns: 1fr; }
+      .references-card { grid-column: 1; }
+      .section-heading { align-items: flex-start; flex-direction: column; gap: 6px; }
+      .footer { flex-direction: column; }
+    }
+    @media (max-width: 450px) {
+      .shell { width: calc(100% - 24px); }
+      .brand { font-size: 11px; }
+      .blueprint-grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr; }
+      .hotspot { width: 24px; border-width: 1px; font-size: 8px; }
+      .control-group { gap: 5px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell topbar">
+    <a class="brand" href="index.html" aria-label="RAG projects home">
+      <span class="brand-mark" aria-hidden="true">R↗</span>
+      <span>FIELD NOTES <span style="color:var(--muted);font-weight:450">/ RAG PROJECTS</span></span>
+    </a>
+    <nav class="site-nav" aria-label="Primary navigation">
+      <a class="nav-link" href="index.html">Overview</a>
+      <details class="projects-menu">
+        <summary>Projects</summary>
+        <div class="project-menu-items">
+          <a href="index.html">RAG, in motion</a>
+          <a href="csv-rag-dgx-kubernetes.html" aria-current="page">CSV RAG on DGX Kubernetes</a>
+        </div>
+      </details>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" aria-pressed="false">
+        <span data-theme-icon aria-hidden="true">☼</span><span data-theme-label>Light mode</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="shell">
+    <section class="hero" aria-labelledby="page-title">
+      <div>
+        <div class="eyebrow">PROJECT 02 · CSV → GPU INDEX → GROUNDED ANSWER</div>
+        <h1 id="page-title">CSV RAG on <span>DGX Kubernetes.</span></h1>
+        <p class="hero-copy">Explore the supplied deployment diagram as an interactive system map. Select a numbered node to inspect its role, deployment boundary, and production checks. The architecture is a reference design—not a live cluster or running API.</p>
+      </div>
+      <aside class="hero-aside" aria-label="Project summary">
+        <div class="aside-label">Batch once / retrieve per request</div>
+        <div class="aside-number">Build <span style="color:var(--faint)">→</span> Serve</div>
+        <div class="aside-copy">Use the GPU where it helps, preserve source metadata, and keep retrieval and generation measurable.</div>
+      </aside>
+    </section>
+
+    <section class="stats" aria-label="Architecture summary">
+      <div class="stat"><strong>4 + 6</strong><span>Offline indexing steps / online request stages</span></div>
+      <div class="stat"><strong>CSV → FAISS</strong><span>Tabular source transformed into a searchable vector index</span></div>
+      <div class="stat"><strong>DGX + K8s</strong><span>GPU-backed services shown in the supplied reference</span></div>
+    </section>
+
+    <section aria-labelledby="map-title">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">01 — Interactive deployment map</div>
+          <h2 id="map-title">Select a node. Follow the data.</h2>
+        </div>
+        <div class="section-note">The original architecture image stays intact; numbered hotspots provide keyboard-accessible explanations and a step/run animation.</div>
+      </div>
+
+      <div class="visual-layout">
+        <div class="visual-card">
+          <div class="visual-topline">
+            <span>Source diagram · full image with interactive layers</span>
+            <strong>OFFLINE INDEXING / ONLINE QUERY</strong>
+          </div>
+          <div class="image-wrap" id="image-wrap">
+            <img class="architecture-image" src="CSV%20RAG%20Deployment%20Architecture%20on%20NVIDIA%20DGX%20Kubernetes.png" alt="CSV RAG deployment architecture: offline CSV serialization, MiniLM embedding and FAISS indexing; online FastAPI query processing, GPU embeddings, FAISS retrieval, context augmentation and NVIDIA NIM generation on Kubernetes.">
+            <button class="hotspot" style="--x:12.3%;--y:35.2%" data-stage="csv" data-x="12.3%" data-y="35.2%" aria-label="Step 1: CSV book catalog" aria-pressed="false">01</button>
+            <button class="hotspot" style="--x:36.5%;--y:35.2%" data-stage="serialize" data-x="36.5%" data-y="35.2%" aria-label="Step 2: Row serialization" aria-pressed="false">02</button>
+            <button class="hotspot" style="--x:62.3%;--y:35.5%" data-stage="offline-embed" data-x="62.3%" data-y="35.5%" data-kind="gpu" aria-label="Step 3: Offline sentence embeddings on GPU" aria-pressed="false">03</button>
+            <button class="hotspot" style="--x:87.7%;--y:35.2%" data-stage="index" data-x="87.7%" data-y="35.2%" aria-label="Step 4: FAISS vector index" aria-pressed="false">04</button>
+            <button class="hotspot" style="--x:8.7%;--y:72.7%" data-stage="client" data-x="8.7%" data-y="72.7%" data-kind="api" aria-label="Step 5: User or client" aria-pressed="false">05</button>
+            <button class="hotspot" style="--x:29.2%;--y:71.9%" data-stage="api" data-x="29.2%" data-y="71.9%" data-kind="api" aria-label="Step 6: FastAPI microservice" aria-pressed="false">06</button>
+            <button class="hotspot" style="--x:48.5%;--y:67.2%" data-stage="query-embed" data-x="48.5%" data-y="67.2%" data-kind="gpu" aria-label="Step 7: Online query embedding on GPU" aria-pressed="false">07</button>
+            <button class="hotspot" style="--x:68.7%;--y:67.2%" data-stage="search" data-x="68.7%" data-y="67.2%" aria-label="Step 8: FAISS similarity search" aria-pressed="false">08</button>
+            <button class="hotspot" style="--x:87.3%;--y:67.2%" data-stage="context" data-x="87.3%" data-y="67.2%" aria-label="Step 9: Retrieved context augmentation" aria-pressed="false">09</button>
+            <button class="hotspot" style="--x:84.5%;--y:86.7%" data-stage="nim" data-x="84.5%" data-y="86.7%" data-kind="gpu" aria-label="Step 10: NVIDIA NIM language model" aria-pressed="false">10</button>
+            <span class="flow-token" id="flow-token" aria-hidden="true"></span>
+          </div>
+          <div class="visual-controls">
+            <div class="control-group">
+              <button class="button primary" id="run-flow" type="button">▶ Run flow</button>
+              <button class="button" id="step-flow" type="button">Step once</button>
+              <button class="button" id="reset-flow" type="button">Reset</button>
+            </div>
+            <div class="flow-status" id="flow-status" aria-live="polite">SELECT A NODE OR START THE FLOW</div>
+          </div>
+        </div>
+
+        <aside class="detail-card" aria-live="polite" aria-labelledby="detail-title">
+          <div class="detail-kicker" id="detail-kicker">NODE DETAILS · READY</div>
+          <h3 id="detail-title">Select a pipeline node</h3>
+          <p class="detail-copy" id="detail-copy">Choose one of the numbered markers on the architecture. Review each stage’s purpose, suggested implementation, and operational considerations.</p>
+          <div class="detail-tags" id="detail-tags"></div>
+          <div class="detail-subhead">Build and operate</div>
+          <ul class="detail-list" id="detail-list">
+            <li>Keep the original CSV and its source IDs traceable.</li>
+            <li>Validate the deployment against your actual DGX GPU and Kubernetes setup.</li>
+          </ul>
+          <div class="detail-warning" id="detail-warning">Security boundary: keep NVIDIA API credentials in a Kubernetes Secret or approved external secret manager. Never embed keys in this static site or commit them to source control.</div>
+        </aside>
+      </div>
+    </section>
+
+    <section aria-labelledby="blueprint-title">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">02 — Deployment blueprint</div>
+          <h2 id="blueprint-title">Separate the batch job from the serving path.</h2>
+        </div>
+        <div class="section-note">A practical starting point for a team adapting the illustration to its own data, capacity, and security requirements.</div>
+      </div>
+      <div class="blueprint-grid">
+        <article class="blueprint-card">
+          <div class="card-index">01 / INGEST</div>
+          <h3>Validate before embedding</h3>
+          <p>Run a versioned Kubernetes Job to read CSV, check required columns and encodings, normalize fields, reject malformed rows, and preserve stable record IDs.</p>
+        </article>
+        <article class="blueprint-card">
+          <div class="card-index">02 / GPU BATCH</div>
+          <h3>Batch embeddings on DGX</h3>
+          <p>Schedule the encoder workload on GPU-capable nodes. Batch rows, record model and preprocessing versions, and publish the resulting index as an immutable artifact.</p>
+        </article>
+        <article class="blueprint-card">
+          <div class="card-index">03 / ONLINE</div>
+          <h3>Keep retrieval close to API</h3>
+          <p>Serve the FastAPI endpoint behind internal Kubernetes Services. Load a matching FAISS index and metadata snapshot; swap versions atomically during re-indexing.</p>
+        </article>
+        <article class="blueprint-card">
+          <div class="card-index">04 / OPERATE</div>
+          <h3>Measure every boundary</h3>
+          <p>Track ingest rejects, index age, retrieval quality, GPU utilization, queue time, p95 latency, and citation faithfulness—not just generated answer fluency.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="bottom-grid" aria-label="API example and deployment checklist">
+      <article class="contract-card">
+        <h3>Example query contract</h3>
+        <pre><code>POST /query
+{
+  "query": "Which books cover analytics?",
+  "top_k": 4,
+  "filters": { "collection": "catalog-v3" }
+}
+
+200 OK
+{
+  "answer": "…",
+  "sources": [
+    { "record_id": "BK-018", "title": "…", "distance": 0.82 }
+  ],
+  "index_version": "catalog-v3"
+}</code></pre>
+        <p class="metrics-note">Illustrative contract only. For L2 search, a lower distance indicates a closer vector; it is not a probability. Validate filters, enforce caller authorization, and return source IDs for provenance.</p>
+      </article>
+      <article class="checklist-card">
+        <h3>Production readiness checks</h3>
+        <ul class="checklist">
+          <li>Pin container images, model revisions, preprocessing code, CSV schema, and index version together.</li>
+          <li>Use GPU-aware scheduling and verify device plugin / GPU Operator configuration for the target cluster.</li>
+          <li>Add startup, readiness, and liveness probes; bound request and model timeouts; set resource requests and limits.</li>
+          <li>Protect the API with authentication, authorization, TLS, rate limits, and audit-safe logging.</li>
+          <li>Keep model credentials and private data out of images, logs, browser code, and Git.</li>
+        </ul>
+        <p class="metrics-note"><strong>Evaluate separately:</strong> Recall@k / MRR for retrieval; faithfulness and citation correctness for generation; throughput and p95/p99 latency for serving.</p>
+      </article>
+      <article class="references-card">
+        <h3>Project references</h3>
+        <div class="reference-links">
+          <a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/" target="_blank" rel="noopener noreferrer">Kubernetes Jobs ↗</a>
+          <a href="https://kubernetes.io/docs/concepts/workloads/controllers/deployment/" target="_blank" rel="noopener noreferrer">Kubernetes Deployments ↗</a>
+          <a href="https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/" target="_blank" rel="noopener noreferrer">NVIDIA GPU Operator ↗</a>
+          <a href="https://docs.nvidia.com/nim/large-language-models/latest/" target="_blank" rel="noopener noreferrer">NVIDIA NIM ↗</a>
+          <a href="https://github.com/facebookresearch/faiss/wiki/Getting-started" target="_blank" rel="noopener noreferrer">FAISS ↗</a>
+          <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener noreferrer">FastAPI ↗</a>
+          <a href="https://www.sbert.net/docs/sentence_transformer/usage/semantic_textual_similarity.html" target="_blank" rel="noopener noreferrer">Sentence Transformers ↗</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    <span>RAG PROJECTS / CSV → DGX → KUBERNETES</span>
+    <span>Reference architecture · verify GPU, cluster, and service details before deployment</span>
+  </footer>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const themeToggle = document.getElementById("theme-toggle");
+      const themeIcon = themeToggle.querySelector("[data-theme-icon]");
+      const themeLabel = themeToggle.querySelector("[data-theme-label]");
+      function applyTheme(theme) {
+        const isLight = theme === "light";
+        document.documentElement.dataset.theme = isLight ? "light" : "dark";
+        themeToggle.setAttribute("aria-pressed", String(isLight));
+        themeToggle.setAttribute("aria-label", `Switch to ${isLight ? "dark" : "light"} mode`);
+        themeIcon.textContent = isLight ? "☾" : "☼";
+        themeLabel.textContent = isLight ? "Dark mode" : "Light mode";
+        document.querySelector('meta[name="theme-color"]').content = isLight ? "#f3f6f1" : "#111511";
+      }
+      let savedTheme = "dark";
+      try {
+        const preference = window.localStorage.getItem("rag-site-theme");
+        if (preference === "light" || preference === "dark") savedTheme = preference;
+      } catch (error) {
+        console.warn("Could not read the saved theme preference; using dark mode.", error);
+      }
+      applyTheme(savedTheme);
+      themeToggle.addEventListener("click", () => {
+        const nextTheme = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+        applyTheme(nextTheme);
+        try {
+          window.localStorage.setItem("rag-site-theme", nextTheme);
+        } catch (error) {
+          console.warn("Could not save the theme preference; the current page theme is still updated.", error);
+        }
+      });
+
+      const stages = [
+        {
+          id: "csv", lane: "OFFLINE · 01 / 04", title: "CSV book catalog",
+          copy: "The build pipeline begins with a versioned CSV source. Keep a stable record ID and enough metadata to trace each retrieved passage back to its source row.",
+          tags: ["CSV", "schema validation", "source IDs"],
+          checks: ["Check headers, quoting, delimiters, encoding, nulls, and duplicate IDs before processing.", "Quarantine invalid rows with a reason; do not silently drop records.", "Classify sensitive columns and decide whether they may be embedded."],
+          warning: "Treat source files as controlled inputs. Apply access permissions and retention rules before they enter the index."
+        },
+        {
+          id: "serialize", lane: "OFFLINE · 02 / 04", title: "Row serialization",
+          copy: "Convert structured fields into stable, readable text before embedding. Keep the serialized text and metadata mapping versioned with the source record.",
+          tags: ["field mapping", "normalization", "metadata"],
+          checks: ["Normalize whitespace and dates consistently; preserve meaningful units and labels.", "Use an explicit schema and deterministic field order.", "For large or long-form fields, chunk deliberately and retain parent-record IDs."],
+          warning: "A CSV row may fit one embedding input, but verify token limits and chunk boundaries for real data."
+        },
+        {
+          id: "offline-embed", lane: "OFFLINE · 03 / 04", title: "Sentence embeddings on DGX",
+          copy: "The supplied diagram uses all-MiniLM-L6-v2 on an A100 GPU as an example. Run embedding as a batched job on the GPU type available to your Kubernetes cluster.",
+          tags: ["Sentence Transformers", "GPU batch", "model revision"],
+          checks: ["Pin the model revision, tokenizer, normalization, precision, and preprocessing.", "Batch rows to balance GPU utilization and memory; record failed IDs for safe retry.", "Verify the target node's GPU product and driver/runtime compatibility."],
+          warning: "The image's A100 label describes its reference setup, not a guarantee about your DGX or node pool."
+        },
+        {
+          id: "index", lane: "OFFLINE · 04 / 04", title: "FAISS vector index",
+          copy: "Build the FAISS index from the output vectors and persist a matching ID-to-source metadata artifact. The index and metadata must be published as one compatible version.",
+          tags: ["FAISS", "index version", "metadata mapping"],
+          checks: ["Record dimension, metric, vector count, model revision, and build timestamp.", "Store the index and metadata together in durable storage; verify checksums before promotion.", "Run retrieval smoke tests before making the new index available."],
+          warning: "IndexFlatL2 is exact and can be a useful baseline; benchmark memory and latency before choosing an index for larger corpora."
+        },
+        {
+          id: "client", lane: "ONLINE · REQUEST", title: "User or client",
+          copy: "A client submits a question to the query service. The request boundary should identify the caller and constrain which collection or records the caller may search.",
+          tags: ["REST", "identity", "authorization"],
+          checks: ["Use TLS and authenticated identities; authorize access to each collection.", "Limit request size and rate; validate filters against an allowlist.", "Avoid logging raw questions or retrieved private text by default."],
+          warning: "A retrieved document is data, not trusted instruction. Keep system instructions separate from retrieved content."
+        },
+        {
+          id: "api", lane: "ONLINE · SERVICE", title: "FastAPI microservice",
+          copy: "The API validates requests, routes work to the query encoder, retrieves authorized records, assembles evidence, and returns a structured answer with source references.",
+          tags: ["FastAPI", "Kubernetes Deployment", "health probes"],
+          checks: ["Keep request parsing, retrieval, generation, and response validation observable as separate spans.", "Add startup/readiness/liveness probes and bounded timeouts.", "Keep credentials in Kubernetes Secrets or an approved external secrets manager."],
+          warning: "Do not ship NVIDIA API keys in this site, frontend JavaScript, container images, or repository files."
+        },
+        {
+          id: "query-embed", lane: "ONLINE · QUERY ENCODING", title: "Encode the query",
+          copy: "Transform the question with the same model family and preprocessing contract used for document vectors. The reference sends this work to a GPU-backed Sentence Transformers service.",
+          tags: ["same embedding space", "GPU service", "latency"],
+          checks: ["Check embedding dimension and normalization against the loaded index metadata.", "Reuse a model service only if throughput, queueing, and failure isolation meet your goals.", "Measure encoder queue time separately from inference time."],
+          warning: "Changing the encoder or preprocessing requires rebuilding document vectors and the matching index."
+        },
+        {
+          id: "search", lane: "ONLINE · VECTOR RETRIEVAL", title: "FAISS similarity search",
+          copy: "Search the version-matched vector index and map returned IDs to authorized source metadata. Return scores with their metric meaning; do not present raw distances as probabilities.",
+          tags: ["top-k", "Recall@k", "source IDs"],
+          checks: ["Tune top-k using representative evaluation queries and a labeled relevance set.", "Filter invalid/padded IDs and enforce metadata-level access controls.", "Track Recall@k, MRR, index version, and retrieval latency."],
+          warning: "Poor retrieval recall limits the evidence available to the generator; evaluate retrieval independently."
+        },
+        {
+          id: "context", lane: "ONLINE · CONTEXT ASSEMBLY", title: "Augment with retrieved records",
+          copy: "Select and format relevant records alongside the question. Preserve source identifiers so the generated response can cite evidence and users can inspect it.",
+          tags: ["bounded context", "provenance", "prompt hygiene"],
+          checks: ["Deduplicate overlapping passages and stay within the model's context limit.", "Separate trusted instructions from retrieved text and handle conflicting records.", "Keep citations linked to the exact retrieved passage and index version."],
+          warning: "More context is not always better. Irrelevant or hostile text can reduce answer quality and create prompt-injection risk."
+        },
+        {
+          id: "nim", lane: "ONLINE · GENERATION", title: "NVIDIA NIM language model",
+          copy: "The diagram shows a Llama 3.1 model served through NVIDIA NIM. Send a bounded evidence context, require source-grounded output, and return a clear not-found response when support is weak.",
+          tags: ["NVIDIA NIM", "grounded answer", "citations"],
+          checks: ["Use a server-side integration and store credentials in a secret manager.", "Set request deadlines, retry only safe transient failures, and bound concurrency.", "Evaluate faithfulness, citation correctness, refusal behavior, and p95/p99 latency."],
+          warning: "This page does not call NIM or create credentials. Live inference requires a protected backend and a configured NIM endpoint."
+        }
+      ];
+
+      const hotspotButtons = [...document.querySelectorAll(".hotspot")];
+      const detailKicker = document.getElementById("detail-kicker");
+      const detailTitle = document.getElementById("detail-title");
+      const detailCopy = document.getElementById("detail-copy");
+      const detailTags = document.getElementById("detail-tags");
+      const detailList = document.getElementById("detail-list");
+      const detailWarning = document.getElementById("detail-warning");
+      const flowToken = document.getElementById("flow-token");
+      const flowStatus = document.getElementById("flow-status");
+      const runButton = document.getElementById("run-flow");
+      const stepButton = document.getElementById("step-flow");
+      let selectedIndex = -1;
+      let flowTimer = null;
+      let isRunning = false;
+
+      function renderStage(index) {
+        selectedIndex = index;
+        if (index < 0) {
+          hotspotButtons.forEach(button => button.setAttribute("aria-pressed", "false"));
+          flowToken.classList.remove("is-visible");
+          detailKicker.textContent = "NODE DETAILS · READY";
+          detailTitle.textContent = "Select a pipeline node";
+          detailCopy.textContent = "Choose one of the numbered markers on the architecture. Review each stage’s purpose, suggested implementation, and operational considerations.";
+          detailTags.replaceChildren();
+          detailList.replaceChildren();
+          ["Keep the original CSV and its source IDs traceable.", "Validate the deployment against your actual DGX GPU and Kubernetes setup."].forEach(text => {
+            const item = document.createElement("li");
+            item.textContent = text;
+            detailList.append(item);
+          });
+          detailWarning.textContent = "Security boundary: keep NVIDIA API credentials in a Kubernetes Secret or approved external secret manager. Never embed keys in this static site or commit them to source control.";
+          flowStatus.textContent = "SELECT A NODE OR START THE FLOW";
+          stepButton.disabled = false;
+          return;
+        }
+        const stage = stages[index];
+        const button = hotspotButtons.find(item => item.dataset.stage === stage.id);
+        hotspotButtons.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+        flowToken.style.left = button.dataset.x;
+        flowToken.style.top = button.dataset.y;
+        flowToken.classList.add("is-visible");
+        detailKicker.textContent = stage.lane;
+        detailTitle.textContent = stage.title;
+        detailCopy.textContent = stage.copy;
+        detailTags.replaceChildren();
+        stage.tags.forEach(text => {
+          const tag = document.createElement("span");
+          tag.className = "tag";
+          tag.textContent = text;
+          detailTags.append(tag);
+        });
+        detailList.replaceChildren();
+        stage.checks.forEach(text => {
+          const item = document.createElement("li");
+          item.textContent = text;
+          detailList.append(item);
+        });
+        detailWarning.textContent = stage.warning;
+        flowStatus.textContent = `${String(index + 1).padStart(2, "0")} / ${String(stages.length).padStart(2, "0")} · ${stage.title.toUpperCase()}`;
+        stepButton.disabled = index >= stages.length - 1;
+      }
+
+      function stopFlow() {
+        if (flowTimer !== null) window.clearTimeout(flowTimer);
+        flowTimer = null;
+        isRunning = false;
+        runButton.disabled = false;
+        runButton.textContent = "▶ Run flow";
+      }
+
+      function stepFlow() {
+        stopFlow();
+        renderStage(selectedIndex >= stages.length - 1 ? 0 : selectedIndex + 1);
+      }
+
+      function runFlow() {
+        if (isRunning) return;
+        if (selectedIndex >= stages.length - 1) renderStage(-1);
+        isRunning = true;
+        runButton.disabled = true;
+        runButton.textContent = "Flow running…";
+        const advance = () => {
+          const next = selectedIndex + 1;
+          if (next >= stages.length) {
+            stopFlow();
+            flowStatus.textContent = "FLOW COMPLETE · REVIEW THE STAGE NOTES";
+            stepButton.disabled = true;
+            return;
+          }
+          renderStage(next);
+          flowTimer = window.setTimeout(advance, 1150);
+        };
+        advance();
+      }
+
+      hotspotButtons.forEach(button => {
+        button.addEventListener("click", () => {
+          stopFlow();
+          renderStage(stages.findIndex(stage => stage.id === button.dataset.stage));
+        });
+      });
+      runButton.addEventListener("click", runFlow);
+      stepButton.addEventListener("click", stepFlow);
+      document.getElementById("reset-flow").addEventListener("click", () => {
+        stopFlow();
+        renderStage(-1);
+      });
+    })();
+  </script>
+</body>
+</html>
